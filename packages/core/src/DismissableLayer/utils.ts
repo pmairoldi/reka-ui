@@ -1,7 +1,7 @@
 import type { MaybeRefOrGetter, Ref } from 'vue'
 import { isClient } from '@vueuse/shared'
 import { nextTick, ref, toValue, watchEffect } from 'vue'
-import { handleAndDispatchCustomEvent } from '@/shared'
+import { getComposedTarget, handleAndDispatchCustomEvent } from '@/shared'
 
 export type PointerDownOutsideEvent = CustomEvent<{
   originalEvent: PointerEvent
@@ -47,8 +47,9 @@ export function isLayerExist(layerElement: HTMLElement, targetElement: HTMLEleme
       '[data-dismissable-layer]',
     ) as HTMLElement
 
+  const root = layerElement.getRootNode() as Document | ShadowRoot
   const nodeList = Array.from(
-    layerElement.ownerDocument.querySelectorAll('[data-dismissable-layer]'),
+    root.querySelectorAll('[data-dismissable-layer]'),
   )
 
   if (targetLayer && (mainLayer === targetLayer || nodeList.indexOf(mainLayer) < nodeList.indexOf(targetLayer))) {
@@ -80,7 +81,7 @@ export function usePointerDownOutside(
     // `document` would miss events from a layer rendered inside an iframe.
     const ownerDocument = element?.value?.ownerDocument ?? globalThis.document
     const handlePointerDown = async (event: PointerEvent) => {
-      const target = event.target as HTMLElement | undefined
+      const target = getComposedTarget(event) as HTMLElement | undefined
 
       if (!element?.value || !target)
         return
@@ -95,7 +96,7 @@ export function usePointerDownOutside(
         return
       }
 
-      if (event.target && !isPointerInsideDOMTree.value) {
+      if (target && !isPointerInsideDOMTree.value) {
         const eventDetail = { originalEvent: event }
 
         function handleAndDispatchPointerDownOutsideEvent() {
@@ -103,6 +104,7 @@ export function usePointerDownOutside(
             POINTER_DOWN_OUTSIDE,
             onPointerDownOutside,
             eventDetail,
+            target,
           )
         }
 
@@ -188,18 +190,19 @@ export function useFocusOutside(
       if (!element?.value)
         return
 
+      const target = getComposedTarget(event) as HTMLElement | undefined
       await nextTick()
       await nextTick()
-      const target = event.target as HTMLElement | undefined
       if (!element.value || !target || isLayerExist(element.value, target))
         return
 
-      if (event.target && !isFocusInsideDOMTree.value) {
+      if (target && !isFocusInsideDOMTree.value) {
         const eventDetail = { originalEvent: event }
         handleAndDispatchCustomEvent(
           FOCUS_OUTSIDE,
           onFocusOutside,
           eventDetail,
+          target,
         )
       }
     }

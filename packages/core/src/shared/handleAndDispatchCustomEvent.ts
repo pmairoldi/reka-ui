@@ -7,8 +7,9 @@ export function handleAndDispatchCustomEvent<
   detail: { originalEvent: OriginalEvent } & (E extends CustomEvent<infer D>
     ? D
     : never),
+  dispatchTarget?: EventTarget | null,
 ) {
-  const target = detail.originalEvent.target
+  const target = dispatchTarget ?? detail.originalEvent.target
   const event = new CustomEvent(name, {
     bubbles: false,
     cancelable: true,

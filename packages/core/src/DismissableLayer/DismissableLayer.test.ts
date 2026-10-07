@@ -823,3 +823,81 @@ describe('given a DismissableLayer rendered inside an iframe (#2949)', () => {
     expect(wrapper.emitted('dismiss')?.length).toBe(1)
   })
 })
+
+describe('given a DismissableLayer rendered inside a shadow root', () => {
+  function mountInShadowRoot() {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const shadow = host.attachShadow({ mode: 'open' })
+    const mountPoint = document.createElement('div')
+    shadow.appendChild(mountPoint)
+
+    const outside = document.createElement('button')
+    shadow.appendChild(outside)
+
+    const wrapper = mount(
+      defineComponent({
+        emits: ['pointerDownOutside', 'dismiss'],
+        setup(_, { emit }) {
+          return () => h(
+            DismissableLayerPrimitive,
+            {
+              // `target` is cleared once dispatch ends for shadow-tree targets, so read it now
+              onPointerDownOutside: (e: Event) => emit('pointerDownOutside', e.target),
+              onDismiss: () => emit('dismiss'),
+            },
+            () => h('button', { id: 'inside' }, 'Inside'),
+          )
+        },
+      }),
+      { attachTo: mountPoint },
+    )
+    onTestFinished(() => {
+      wrapper.unmount()
+      host.remove()
+    })
+    return { wrapper, shadow, outside, inside: shadow.querySelector('#inside') as HTMLElement }
+  }
+
+  const pointerDown = (el: Element, pointerType = 'mouse') =>
+    el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true, pointerType }))
+
+  it('should dispatch the outside event on the real target, not the shadow host', async () => {
+    const { wrapper, outside } = mountInShadowRoot()
+    await sleep(10)
+
+    pointerDown(outside)
+    await sleep(1)
+
+    const emitted = wrapper.emitted('pointerDownOutside') as EventTarget[][]
+    expect(emitted?.length).toBe(1)
+    expect(emitted[0][0]).toBe(outside)
+  })
+
+  it('should keep the real target for a touch interaction deferred to `click`', async () => {
+    const { wrapper, outside } = mountInShadowRoot()
+    await sleep(10)
+
+    pointerDown(outside, 'touch')
+    await sleep(1)
+    expect(wrapper.emitted('pointerDownOutside')).toBeUndefined()
+
+    outside.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }))
+    await sleep(1)
+
+    const emitted = wrapper.emitted('pointerDownOutside') as EventTarget[][]
+    expect(emitted?.length).toBe(1)
+    expect(emitted[0][0]).toBe(outside)
+  })
+
+  it('should not dismiss on a pointerdown inside the layer', async () => {
+    const { wrapper, inside } = mountInShadowRoot()
+    await sleep(10)
+
+    pointerDown(inside)
+    await sleep(1)
+
+    expect(wrapper.emitted('pointerDownOutside')).toBeUndefined()
+    expect(wrapper.emitted('dismiss')).toBeUndefined()
+  })
+})
