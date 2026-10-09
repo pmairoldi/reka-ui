@@ -187,8 +187,10 @@ function handleKeyDown(event: KeyboardEvent) {
   const isModifierKey = event.ctrlKey || event.altKey || event.metaKey
 
   // select should not be navigated using tab key so we prevent it
-  if (event.key === 'Tab')
+  if (event.key === 'Tab') {
     event.preventDefault()
+    rootContext.onOpenChange(false)
+  }
 
   if (!isModifierKey && event.key.length === 1)
     handleTypeaheadSearch(event.key, getItems())
